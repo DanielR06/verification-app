@@ -1,5 +1,6 @@
 const catchError = require('../utils/catchError');
 const User = require('../models/User');
+const EmailCode = require('../models/EmailCode')
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
 
@@ -9,9 +10,9 @@ const getAll = catchError(async(req, res) => {
 });
 
 const create = catchError(async(req, res) => {
-    const {email, password, firstName, lastName, country, image} = req.body
+    const {email, password, firstName, lastName, country, image, frontBaseUrl} = req.body
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await User.create({
+    const user = await User.create({
         email,
         password: hashedPassword,
         firstName, 
@@ -19,14 +20,18 @@ const create = catchError(async(req, res) => {
         country, 
         image
     });
+    const code = require('crypto').randomBytes(32).toString("hex");
+    const link = `${frontBaseUrl}/verify_email/${code}`
     await sendEmail({
         to: email,
         subject: "veficate email for user app",
         html:`
         <h1>Hello ${firstName} ${lastName}</h1>
-        <p>Thanks for sing in user app</p>
+        <p>Verify your account cheking the link</p>
+        <a href=${link} target="_blank">${link}</a>
         `
     })
+    await EmailCode.create({ code, UserId:user.id })
     return res.status(201).json({result, message:"Email sent succesfully"});
 });
 
