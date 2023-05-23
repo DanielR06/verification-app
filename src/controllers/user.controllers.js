@@ -4,7 +4,7 @@ const EmailCode = require('../models/EmailCode')
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
 
-const getAll = catchError(async(req, res) => {
+const getAll = catchError(async(_req, res) => {
     const results = await User.findAll();
     return res.json(results);
 });
@@ -31,8 +31,8 @@ const create = catchError(async(req, res) => {
         <a href=${link} target="_blank">${link}</a>
         `
     })
-    await EmailCode.create({ code, UserId:user.id })
-    return res.status(201).json({result, message:"Email sent succesfully"});
+    await EmailCode.create({ code, userId: user.id })
+    return res.status(201).json({user, message:"Email sent succesfully"});
 });
 
 const getOne = catchError(async(req, res) => {
@@ -58,10 +58,23 @@ const update = catchError(async(req, res) => {
     return res.json(result[1][0]);
 });
 
+const verifyCode = catchError(async(req, res) => {
+    const { code }= req.params;
+    const codeFound = await EmailCode.findOne( { where: { code } } );
+    if (!codeFound)return res.status(401).json({message: 'Invalid code' });
+    const user = await User.update(
+        { isVerified: true },
+        { where: { id: codeFound.userId } , returning: true }
+    );
+    await codeFound.destroy();
+    return res.json(user);
+});
+
 module.exports = {
     getAll,
     create,
     getOne,
     remove,
-    update
+    update,
+    verifyCode
 }
