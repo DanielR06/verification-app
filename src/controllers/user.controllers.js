@@ -91,6 +91,50 @@ const getLoggedUser = catchError(async(req, res) => {
     return res.json(user);
 });
 
+const linkPassword = catchError(async(req, res)=>{
+    const {email, frontBaseUrl} = req.body;
+    const user = await User.findOne({ where: {email} });
+    if(!user) return res.status(401).json({ message: "invalid email" }); 
+    //Debe buscar el usuario al que le pertenezca el email del body. Si no lo encuentra debe retornar 401
+    const code = require('crypto').randomBytes(32).toString("hex");
+    //Debe generar un código
+    const link = `${frontBaseUrl}/reset_password/${code}`
+    await sendEmail({
+        to: email,
+        subject: "Reset youy password for user app",
+        html:`
+        <h1>Hello User</h1>
+        <p>Reset youy password cheking the link</p>
+        <a href=${link} target="_blank">${link}</a>
+        `
+    });
+    //Debe enviar un correo al usuario con este link {frontBaseUrl}/reset_password/{code}
+    await EmailCode.create({
+        code:code,
+        userId:user.id
+    });
+    //Guardará el código y el id del usuario encontrado en EmailCode
+    return res.status(201).json({ message: "Send email for reset password" });
+});
+
+const resetPassword = catchError( async (req, res) => {
+    const { password } = req.body;
+    // Recibirá en el body la nueva contraseña
+    const { code } = req.params
+    // Debe recibir el código generado anteriormente por parámetros 
+    const codeFound = await EmailCode.findOne( { where: {code} } )
+    if(!codeFound) return res.status(401).json({ message: "invalid code" });
+    //Verificar que el código esté en el modelo EmailCode, de lo contrario devolver 401
+    const hashedPassword = await bcrypt.hash(password, 10);
+    //Debe encriptar la contraseña
+    await User.update(
+        { password: hashedPassword },
+        { where: { id: codeFound.userId }}
+    );
+    //Debe actualizar la contraseña al usuario del código de EmailCode.
+    return res.status(201).json({ message: "Update password" });
+});
+
 module.exports = {
     getAll,
     create,
@@ -99,5 +143,7 @@ module.exports = {
     update,
     verifyCode,
     login, 
-    getLoggedUser
+    getLoggedUser,
+    linkPassword,
+    resetPassword
 }
